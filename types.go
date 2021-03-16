@@ -21,8 +21,8 @@ type Processo struct {
 	Verificatori []string
 	Approvatori  []string
 	Versione     uint
-	Input        *Processo
-	Output       *Processo
+	Input        []string
+	Output       []string
 	Raci         []Attivita
 	Status       StatusType
 	Kpis         []Kpi
@@ -37,8 +37,8 @@ type Attivita struct {
 	Titolo      string
 	Descrizione string
 	Ruolo       string
-	Input       *Attivita
-	Output      *Attivita
+	Input       []string
+	Output      []string
 }
 
 type Kpi struct {

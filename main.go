@@ -11,7 +11,7 @@ import (
 )
 
 var c *mgo.Collection
-var database, collection = "dbProcessi", "processi"
+var database, collection = "db", "processi"
 var mongoURL = "mongodb://localhost"
 
 func main() {
@@ -22,25 +22,28 @@ func main() {
 
 	c = session.DB(database).C(collection)
 
-	var p = NewProcesso()
+	deleteAllProcessi()
 
-	p.Titolo = "Cloud"
+	// Crea processi
+	CicloPassivo, err := NewProcesso("Ciclo passivo")
+	if err != nil {
+		log.Println(err)
+	}
+	VerificaBudget, err := NewProcesso("Verifica budget")
+	if err != nil {
+		log.Println(err)
+	}
 
-	p.Save()
+	// Collega processi tra loro
+	CicloPassivo.HaAValle(VerificaBudget)
+	VerificaBudget.HaAMonte(CicloPassivo)
 
-	fmt.Println(p)
+	p, _ := GetProcesso(CicloPassivo.Id)
+	p2, _ := GetProcesso(VerificaBudget.Id)
+	fmt.Printf("%+v\n", p)
+	fmt.Printf("%+v\n", p2)
 
-	var id = p.Id
-
-	t, _ := GetProcesso(id)
-
-	t.Autori = []string{"Alberto Bregliano"}
-
-	UpdateProcesso(id, t)
-
-	p, _ = GetProcesso(id)
-
-	fmt.Printf("%v\n", p)
+	CicloPassivo.Delete()
 
 	// pp, err := GetAllProcessi()
 	// for i, p := range pp {
@@ -52,12 +55,24 @@ func main() {
 }
 
 // NewProcesso crea un nuovo processo.
-func NewProcesso() (p Processo) {
+func NewProcesso(titolo string) (p Processo, err error) {
+	// Verifica che non esistano processi con lo stesso nome.
+	processi, err := GetAllProcessi()
+	if err != nil {
+		return Processo{}, err
+	}
+	for _, processo := range processi {
+		if processo.Titolo == titolo {
+			return Processo{}, fmt.Errorf("titolo \"%s\" già esistente con id %s", titolo, processo.Id)
+		}
+	}
 	p.Id = uuid.NewString()
+	p.Titolo = titolo
 	p.Versione = 1
 	p.Status = Nuovo
 	p.Created_at = time.Now()
-	return p
+	err = p.Save()
+	return p, err
 }
 
 // GetProcesso recupera il processo con id.
@@ -98,6 +113,28 @@ func DeleteProcesso(id string) error {
 	return err
 }
 
+// deleteAllProcessi recupera tutti i processi.
+func deleteAllProcessi() error {
+	var processi []Processo
+	err := c.Find(nil).All(&processi)
+	if err != nil {
+		log.Printf("GetAllProcessi in errore: %v \n", err)
+	}
+	for _, p := range processi {
+		c.Remove(bson.M{"id": p.Id})
+	}
+	return err
+}
+
+func find(s []string, val string) bool {
+	for _, item := range s {
+		if item == val {
+			return true
+		}
+	}
+	return false
+}
+
 // Metodi
 
 // UOCoinvolte restituisce la lista delle Unità organizzative
@@ -114,6 +151,30 @@ func (p Processo) UOCoinvolte() []string {
 	return uos
 }
 
+func (p Processo) HaAMonte(p2 Processo) {
+	// aggiorna processo a monte
+	if !find(p2.Output, p.Id) { // se non è già presente
+		p2.Output = append(p2.Output, p.Id)
+		p2.Update()
+	}
+	// aggiorna processo a valle
+	if !find(p.Input, p2.Id) {
+		p.Input = append(p.Input, p2.Id)
+		p.Update()
+	}
+}
+
+func (p Processo) HaAValle(p2 Processo) {
+	if !find(p.Output, p2.Id) {
+		p.Output = append(p.Output, p2.Id)
+		p.Update()
+	}
+	if !find(p2.Input, p.Id) {
+		p2.Input = append(p2.Input, p.Id)
+		p2.Update()
+	}
+}
+
 func (p Processo) Approva() {
 	p.Status = Approvato
 }
@@ -125,13 +186,26 @@ func (p Processo) Ver() uint {
 func (p Processo) Delete() {
 	err := c.Remove(bson.M{"id": p.Id})
 	if err != nil {
-		log.Print(err)
+		log.Printf("Delete di %s in errore: %v\n", p.Titolo, err)
 	}
 }
 
-func (p Processo) Save() {
+func (p Processo) Update() error {
+	p.Versione++
+	p.Updated_at = time.Now()
+
+	err := c.Update(bson.M{"id": p.Id}, &p)
+	if err != nil {
+		log.Printf("Update di %s in errore: %v\n", p.Id, err)
+	}
+	return err
+}
+
+func (p Processo) Save() error {
 	err := c.Insert(&p)
 	if err != nil {
-		log.Print(err)
+		log.Printf("Save di %s in errore: %v\n", p.Id, err)
+
 	}
+	return err
 }
