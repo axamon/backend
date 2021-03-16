@@ -10,37 +10,17 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-type StatusType int
-
-const (
-	Nuovo StatusType = iota
-	Verificato
-	Approvato
-	InVigore
-	Superato
-)
-
-type Processo struct {
-	Id           string
-	Titolo       string
-	Autori       []string
-	Verificatori []string
-	Approvatori  []string
-	Versione     uint
-	Status       StatusType
-	Created_at   time.Time
-	Updated_at   time.Time
-}
-
 var c *mgo.Collection
+var database, collection = "dbProcessi", "processi"
+var mongoURL = "mongodb://localhost"
 
 func main() {
-	session, err := mgo.Dial("mongodb://localhost")
+	session, err := mgo.Dial(mongoURL)
 	if err != nil {
 		log.Print("session", err)
 	}
 
-	c = session.DB("database").C("processi")
+	c = session.DB(database).C(collection)
 
 	var p = NewProcesso()
 
@@ -118,19 +98,40 @@ func DeleteProcesso(id string) error {
 	return err
 }
 
+// Metodi
+
+// UOCoinvolte restituisce la lista delle Unità organizzative
+// coinvolte in un processo.
+func (p Processo) UOCoinvolte() []string {
+	m := make(map[string]struct{})
+	for _, a := range p.Raci {
+		m[a.UO] = struct{}{}
+	}
+	var uos []string
+	for uo := range m {
+		uos = append(uos, uo)
+	}
+	return uos
+}
+
+func (p Processo) Approva() {
+	p.Status = Approvato
+}
+
+func (p Processo) Ver() uint {
+	return p.Versione
+}
+
 func (p Processo) Delete() {
 	err := c.Remove(bson.M{"id": p.Id})
 	if err != nil {
 		log.Print(err)
 	}
-
 }
 
 func (p Processo) Save() {
-
 	err := c.Insert(&p)
 	if err != nil {
 		log.Print(err)
 	}
-
 }
