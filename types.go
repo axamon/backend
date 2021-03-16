@@ -12,6 +12,15 @@ const (
 	Superato
 )
 
+type RaciResp string
+
+const (
+	R RaciResp = "R"
+	A RaciResp = "A"
+	C RaciResp = "C"
+	I RaciResp = "I"
+)
+
 type Processo struct {
 	Id           string
 	Titolo       string
@@ -23,11 +32,14 @@ type Processo struct {
 	Versione     uint
 	Input        []string
 	Output       []string
-	Raci         []Attivita
+	Attivitas    []*Attivita
 	Status       StatusType
 	Kpis         []Kpi
 	Created_at   time.Time
 	Updated_at   time.Time
+	costo        float64
+	tmedio       float64
+	devstd       float64
 }
 
 type Attivita struct {
@@ -36,9 +48,12 @@ type Attivita struct {
 	UO          string
 	Titolo      string
 	Descrizione string
-	Ruolo       string
+	Ruolo       RaciResp
 	Input       []string
 	Output      []string
+	tmedio      float64
+	devstd      float64
+	costo       float64
 }
 
 type Kpi struct {
